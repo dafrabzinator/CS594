@@ -135,7 +135,8 @@ def router_init(options, args):
     global fwd_tbl_srt
     
     # Open up interfaces config File
-    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/interfaces.conf")
+#    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/interfaces.conf")
+    f = open("/Users/stacy/Desktop/CS 594/proj2/M1-test01/interfaces.conf")
     line_cnt = 0
     for line in f:
         line = line.split()
@@ -152,7 +153,8 @@ def router_init(options, args):
     num_interfaces = line_cnt
 
     #Open up static mac table
-    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/MAC-address-table.txt")
+#    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/MAC-address-table.txt")
+    f = open("/Users/stacy/Desktop/CS 594/proj2/M1-test01/MAC-address-table.txt")
     for line in f:
         line = line.split()
         if line[0] == "#":
@@ -161,7 +163,8 @@ def router_init(options, args):
             mac_tbl[line[0]] = line[1]
             
     #Open up static forwarding table
-    f= open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/forwarding.conf")
+#    f= open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/forwarding.conf")
+    f= open("/Users/stacy/Desktop/CS 594/proj2/M1-test01/forwarding.conf")
     line_cnt = 0
     for line in f:
         line = line.split()
@@ -231,7 +234,8 @@ def get_packet(g):
 
 
 def run_output_interface(iface_num, q, trans_delay):
-  filename = "/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/output-%d.pcap" % iface_num
+#  filename = "/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/output-%d.pcap" % iface_num
+  filename = "/Users/stacy/Desktop/CS 594/proj2/output_test/output-%d.pcap" % iface_num
   f = open(filename, "wb")
   writer = dpkt.pcap.Writer(f)
   while True:
@@ -270,7 +274,8 @@ if __name__ == "__main__":
   generators = {}
   input_files = {}
   for i in range(num_interfaces):
-    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/input-%d.pcap" % i, "rb")
+#    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/input-%d.pcap" % i, "rb")
+    f = open("/Users/stacy/Desktop/CS 594/proj2/M1-test01/input-%d.pcap" % i, "rb")
     input_files[i] = f
     reader = dpkt.pcap.Reader(f)
     generator = reader.__iter__()
