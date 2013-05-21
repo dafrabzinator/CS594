@@ -64,7 +64,7 @@ fwd_tbl_srt = []
 
 ##
 ##
-## Sited Sources May be Needed
+## Cited Sources May be Needed
 
 def check_fwd(ck_add):
     global fwd_tbl_srt
