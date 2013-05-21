@@ -37,6 +37,7 @@ import difflib
 import matplotlib
 import ipaddr
 import struct
+import socket
 
 from multiprocessing import Process, Queue
 from Queue import Full as QueueFullException
@@ -50,7 +51,9 @@ import dpkt
 
 # But the Ethernet module is fair game!
 # Feel free to use this one:
-from dpkt.ethernet import Ethernet  
+from dpkt.ethernet import Ethernet
+from dpkt.udp import UDP
+from dpkt.rip import RIP
 
 DEBUG = False
 
@@ -68,7 +71,6 @@ fwd_tbl_srt = []
 
 def check_fwd(ck_add):
     global fwd_tbl_srt
-    #Relocate this code to a function called locate add a counter
     #Iterate through list from top to bottom returning the Forward address
     netwk = ipaddr.IPv4Address(ck_add)
     
@@ -95,12 +97,15 @@ def send_arp_resp(ts, iface, pkt, queues):
     destIP = pkt[28:32]#slice from pkt sender IP
     destMac =  pkt[6:12]#slice from pkt sender Mac
     srcIP = pkt[38:42]#slide from pkt dest IP
-    ###NEED TO CONVERT TO DOT NOTATION
+    #Second Variable for Manipulation
     srcIP2 = srcIP
+    #Construct in Dot Notation for use in function check_iface
     srcConst = str(int((srcIP2[0:1].encode("hex")), 16)) + "." + str(int((srcIP2[1:2].encode("hex")), 16)) + "." + str(int((srcIP2[2:3].encode("hex")), 16)) + "." + str(int((srcIP2[3:4].encode("hex")), 16))
     catch = check_iface(srcConst)
     srcMac =  interface_tbl[int(catch)][0]
+    #split mac address to remove :
     srcMac = srcMac.split(":")
+    #Change to Int then Binary and Concatenate
     srcMacT = chr(int(srcMac[0], 16))
     srcMacT += chr(int(srcMac[1], 16))
     srcMacT += chr(int(srcMac[2], 16))
@@ -118,13 +123,33 @@ def send_arp_resp(ts, iface, pkt, queues):
     pkt = pkt[:28] + srcIP + pkt[32:]
     pkt = pkt[:32] + destMac + pkt[38:]
     pkt = pkt[:38] + destIP
-    print pkt.encode("hex")
-    
+    if DEBUG:
+        print pkt.encode("hex")
+
+    #prep for sending
     q = queues[iface]
     try:
         q.put( (ts,pkt) )
     except QueueFullException:
         drop_count += 1
+
+def processRip(pkt, iface, queues):
+    eth = dpkt.ethernet.Ethernet(pkt)
+    ip = eth.data
+    udp = ip.data
+    rip = dpkt.rip.RIP(udp.data)
+    for rte in rip.rtes:
+        #Process algorithm
+        if rte.metric > 0 and rte.metric < 16:
+            if DEBUG:
+                print "valid metric %d" % rte.metric
+        if DEBUG:
+            print "family %d" % rte.family
+            print '{0:32b}'.format(rte.addr)
+            print rte.addr
+            print '{0:32b}'.format(rte.subnet)
+            print rte.subnet
+            print rte.next_hop
 
 
 def router_init(options, args):
@@ -209,6 +234,26 @@ def router_init(options, args):
 
 def callback(ts, pkt, iface, queues):
     
+    #The Response must be ignored if it is not from the RIP port. - Do Nothing
+
+    #The datagram's IPv4 source address should be checked to see whether the
+    #datagram is from a valid neighbor; the source of the datagram must be
+    #on a directly-connected network.
+    
+    
+    #catch IP then UDP
+    if pkt[12:14].encode("hex") == "0800" and pkt[23:24].encode("hex") == "11" :
+        #listen on port 502
+        if pkt[36:38].encode("hex") == "0208":
+            processRip(pkt, iface, queues)
+                #The datagram's IPv4 source address should be checked to see whether the
+                #datagram is from a valid neighbor; the source of the datagram must be
+                #on a directly-connected network.
+                #It is also worth checking to see whether the response is from one of the router's own addresses. - Do Nothing
+        else:
+            #verify no need to handle any other type of UDP packages
+            return
+
     if pkt[12:14].encode("hex") == "0806":
         send_arp_resp(ts, iface, pkt, queues)
     
@@ -270,7 +315,7 @@ if __name__ == "__main__":
   generators = {}
   input_files = {}
   for i in range(num_interfaces):
-    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/input-%d.pcap" % i, "rb")
+    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/M2-test01/input-%d.pcap" % i, "rb")
     input_files[i] = f
     reader = dpkt.pcap.Reader(f)
     generator = reader.__iter__()
