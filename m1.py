@@ -90,7 +90,8 @@ def check_iface(ck_add):
 
 def send_arp_resp(ts, iface, pkt, queues):
     global interface_tbl
-
+    if DEBUG:
+        print pkt.encode("hex")
     destIP = pkt[28:32]#slice from pkt sender IP
     destMac =  pkt[6:12]#slice from pkt sender Mac
     srcIP = pkt[38:42]#slide from pkt dest IP
@@ -100,16 +101,24 @@ def send_arp_resp(ts, iface, pkt, queues):
     catch = check_iface(srcConst)
     srcMac =  interface_tbl[int(catch)][0]
     srcMac = srcMac.split(":")
-    srcMac = srcMac[0] + srcMac[1] + srcMac[2] + srcMac[3] + srcMac[4] + srcMac[5]
+    srcMacT = chr(int(srcMac[0], 16))
+    srcMacT += chr(int(srcMac[1], 16))
+    srcMacT += chr(int(srcMac[2], 16))
+    srcMacT += chr(int(srcMac[3], 16))
+    srcMacT += chr(int(srcMac[4], 16))
+    srcMacT += chr(int(srcMac[5], 16))
+    if DEBUG:
+        print srcMacT.encode("hex")
 
     #rewrite items pkt
     pkt = destMac +  pkt[6:]
-    pkt = pkt[:6] + srcMac + pkt[12:]
-    pkt = pkt[:21] + bin(2) + pkt[22:]
-    pkt = pkt[:22] + srcMac + pkt[28:]
+    pkt = pkt[:6] + srcMacT + pkt[12:]
+    pkt = pkt[:21] + chr(2) + pkt[22:]
+    pkt = pkt[:22] + srcMacT + pkt[28:]
     pkt = pkt[:28] + srcIP + pkt[32:]
     pkt = pkt[:32] + destMac + pkt[38:]
     pkt = pkt[:38] + destIP
+    print pkt.encode("hex")
     
     q = queues[iface]
     try:
