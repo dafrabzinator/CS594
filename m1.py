@@ -55,6 +55,9 @@ from dpkt.ethernet import Ethernet
 DEBUG = False
 
 num_interfaces = 0
+
+# our Global definitions
+
 # dictionary for mac address table
 mac_tbl = {}
 # list of list for interface table
@@ -62,10 +65,12 @@ interface_tbl = []
 fwd_tbl = []
 fwd_tbl_srt = []
 
+# Our new functions
 ##
 ##
 ## Cited Sources May be Needed
 
+# credit: Tyler?
 def check_fwd(ck_add):
     global fwd_tbl_srt
     #Relocate this code to a function called locate add a counter
@@ -77,6 +82,7 @@ def check_fwd(ck_add):
             #returns the address found in the fwd_tbl
             return i[1]
 
+# credit: Tyler?
 def check_iface(ck_add):
     global interface_tbl
     #Relocate this code to a function called locate add a counter
@@ -88,6 +94,7 @@ def check_iface(ck_add):
             #retuns the interface port for the matched address
             return i[2]
 
+# credit: Tyler?
 def send_arp_resp(ts, iface, pkt, queues):
     global interface_tbl
     if DEBUG:
@@ -126,6 +133,32 @@ def send_arp_resp(ts, iface, pkt, queues):
     except QueueFullException:
         drop_count += 1
 
+# Stacy's functions to write: 
+
+# Ignore Ethernet frames addressed to other devices on the LAN
+# This function should take in an ethernet frame, check the MAC address to
+# see if it is us on this interface.  If so, returns a 1.  If not, return "None".
+def ethernet_for_us(packet, arrival_iface):
+  # first, turn the packet into readable ethernet:
+  eth = dpkt.ethernet.Ethernet(packet)
+
+  # now check our interface table to see if the interface it came in on matches
+  # the MAC address being sent to.  If not, we ignore it. 
+  if (eth.dst == MAClookup[arrival_iface]):
+    return 1
+  else:
+    return null
+
+# Function to forward IP packets to the proper outbound interface based on
+# longest-prefix matching.  Takes in the ethernet packet
+def forward_IP_packets_to_iface(packet):
+  # get the destination IP out of the ethernet data payload (the IP packet)
+  dest_ip = eth.data[30:34]
+  
+  # iterate, checking the first bit, second bit, third bit, etc.  
+  # or, perhaps something more clever?
+  # pydoc dpkt.ethernet
+
 
 def router_init(options, args):
     global num_interfaces
@@ -136,7 +169,7 @@ def router_init(options, args):
     
     # Open up interfaces config File
 #    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/interfaces.conf")
-    f = open("M1-test01/interfaces.conf")
+    f = open("M1-test04/interfaces.conf")
     line_cnt = 0
     for line in f:
         line = line.split()
@@ -154,7 +187,7 @@ def router_init(options, args):
 
     #Open up static mac table
 #    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/MAC-address-table.txt")
-    f = open("M1-test01/MAC-address-table.txt")
+    f = open("M1-test04/MAC-address-table.txt")
     for line in f:
         line = line.split()
         if line[0] == "#":
@@ -164,7 +197,7 @@ def router_init(options, args):
             
     #Open up static forwarding table
 #    f= open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/forwarding.conf")
-    f= open("M1-test01/forwarding.conf")
+    f= open("M1-test04/forwarding.conf")
     line_cnt = 0
     for line in f:
         line = line.split()
@@ -215,13 +248,16 @@ def callback(ts, pkt, iface, queues):
     if pkt[12:14].encode("hex") == "0806":
         send_arp_resp(ts, iface, pkt, queues)
     
-    #Test Look Up Return IPV4 address object based on longest prefix match
-    catch = check_fwd('128.255.255.255')
-    if DEBUG:
-        print catch
-    catch2 = check_iface('128.75.247.146')
-    if DEBUG:
-        print catch2
+    # check if the packet is for us, otherwise ignore it.
+    if ethernet_for_us(pkt, iface) == 1:
+      
+      #Test Look Up Return IPV4 address object based on longest prefix match
+      catch = check_fwd('128.255.255.255')
+      if DEBUG:
+          print catch
+      catch2 = check_iface('128.75.247.146')
+      if DEBUG:
+          print catch2
 
 
 def get_packet(g):
@@ -275,7 +311,7 @@ if __name__ == "__main__":
   input_files = {}
   for i in range(num_interfaces):
 #    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/input-%d.pcap" % i, "rb")
-    f = open("M1-test01/input-%d.pcap" % i, "rb")
+    f = open("M1-test04/input-%d.pcap" % i, "rb")
     input_files[i] = f
     reader = dpkt.pcap.Reader(f)
     generator = reader.__iter__()
