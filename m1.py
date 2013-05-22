@@ -212,6 +212,24 @@ def valid_checksum(packet):
       print "Checksums did not match, packet should drop."
     return 0  
 
+# Written by Stacy
+# Decrement the TTL
+def decrement_ttl(packet):
+  if packet[22] == 1:
+    # send ICMP "Time Exceeded" message
+    if DEBUG:
+      print "Time Exceeded for this packet"
+    return 0
+  else:
+    old_ttl = int(pkt[22:23].encode("hex"), 16)
+    new_ttl = old_ttl - 1
+    if DEBUG:
+      print "Original TTL: %s" %old_ttl
+      print "New TTL: %s" %new_ttl
+    packet = packet[:22] + chr(new_ttl) + packet[23:]
+    return packet
+
+
 
 def router_init(options, args):
     global num_interfaces
@@ -313,14 +331,17 @@ def callback(ts, pkt, iface, queues):
       if valid_checksum(pkt) == 1:
         outgoing_iface = forward_IP_packets_to_iface(pkt)
         print "Outgoing Interface: %s" %outgoing_iface
-      
-        #Test Look Up Return IPV4 address object based on longest prefix match
-        catch = check_fwd('128.255.255.255')
-        if DEBUG:
-          print catch
-        catch2 = check_iface('128.75.247.146')
-        if DEBUG:
-          print catch2
+        # decrement TTL
+        pkt = decrement_ttl(pkt)
+        if pkt !=0:
+ 
+          #Test Look Up Return IPV4 address object based on longest prefix match
+          catch = check_fwd('128.255.255.255')
+          if DEBUG:
+            print catch
+          catch2 = check_iface('128.75.247.146')
+          if DEBUG:
+            print catch2
 
 
 def get_packet(g):
