@@ -230,6 +230,35 @@ def decrement_ttl(packet):
     return packet
 
 
+# Written by Stacy
+# recompute the IP header checksum based on the new header
+def recompute_checksum(packet):
+  # pull the header out for computation
+  packet_header = packet[14:34]
+  
+  sum = 0
+  # compute the checksum
+  ##### math: (14 +2i) to (14 +2i +2) add the numbers all together in hex
+  for i in range(0, 10):
+    if i != 5: 
+      temp = packet_header[2*i:2*i+2].encode("hex")
+      sum += int(temp, 16)
+    else:
+      pass
+   
+  ##### then do the 1's complement: div(result) + mod(result).  That's the expected.
+  sum =   (sum % int('ffff', 16)) 
+  calc_checksum = hex(sum ^ 0xFFFF)
+  calc_checksum = "{0:#0{1}x}".format(int(calc_checksum, 16),6)
+  if DEBUG:
+    print "Calculated xor checksum: %s" %calc_checksum
+  
+  # to update:::::::: pkt_value = packet[24:26]
+  packet = packet[:24] + chr(int(calc_checksum[2:4], 16)) + packet[25:]
+  packet = packet[:25] + chr(int(calc_checksum[4:6], 16)) + packet[26:]
+
+  return packet
+
 
 def router_init(options, args):
     global num_interfaces
@@ -330,18 +359,19 @@ def callback(ts, pkt, iface, queues):
       # verify checksum.  if invalid can drop the packet.
       if valid_checksum(pkt) == 1:
         outgoing_iface = forward_IP_packets_to_iface(pkt)
-        print "Outgoing Interface: %s" %outgoing_iface
+        print "Outgoing Interface: %s" %int(outgoing_iface)
         # decrement TTL
         pkt = decrement_ttl(pkt)
-        if pkt !=0:
- 
-          #Test Look Up Return IPV4 address object based on longest prefix match
-          catch = check_fwd('128.255.255.255')
-          if DEBUG:
-            print catch
-          catch2 = check_iface('128.75.247.146')
-          if DEBUG:
-            print catch2
+        if pkt != 0:
+          # recompute the corrected checksum:
+          pkt = recompute_checksum(pkt)
+
+          # then enqueue on the appropriate interface:
+          q = queues[int(outgoing_iface)]
+          try:
+              q.put( (ts,pkt) )
+          except QueueFullException:
+              drop_count += 1
 
 
 def get_packet(g):
