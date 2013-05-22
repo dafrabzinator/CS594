@@ -68,6 +68,7 @@ fwd_tbl = []
 fwd_tbl_srt = []
 RCF = False
 
+
 ##
 ##
 ## Sited Sources May be Needed
@@ -139,7 +140,22 @@ def send_arp_resp(ts, iface, pkt, queues):
 
 #send updates to all neighbors
 #use dictionary to add neighbor IP addresses from forwarding table
-def send_rte_update():
+def send_rte_update(queues):
+    #restart timer
+    ripUpdate.cancel()
+    #timer restart not working
+    #ripUpdate.start()
+
+    #Call the send_update function passing the dest address and outbound iface needed
+    #send_update(parm1, parm2)
+
+
+
+def send_update(addre, iface):
+    #create RIP outbound packet
+    
+    #Send to User
+    
     pass
 
 #function used to return true if route exists and is already
@@ -183,67 +199,78 @@ def processRip(pkt, iface, queues):
     ip = eth.data
     udp = ip.data
     rip = dpkt.rip.RIP(udp.data)
-    for rte in rip.rtes:
-        #Process algorithm
-        
-        #Calculate net mask
-        nMask = '{0:32b}'.format(rte.subnet)
-        count = 0
-        for i in range(0,31):
-            if nMask[i] == "1":
-                count = 0
-            else:
-                count +=1
-        nMask = 32 - count
-        
-        if DEBUG:
-            print "Net Mask is %d" % nMask
-        
-        #Convert int to IP for address from http://snipplr.com/view/14807/
-        octet = ''
-        for exp in [3,2,1,0]:
-            octet = octet + str(rte.addr / ( 256 ** exp )) + "."
-            rte.addr = rte.addr % ( 256 ** exp )
-        dotAddr = (octet.rstrip('.'))
-        if DEBUG:
-            print dotAddr
-        dotAddr = dotAddr + "/" +   str(nMask)
-        if DEBUG:
-            print dotAddr
-        dotAddr = ipaddr.IPv4Network(dotAddr)
+    if pkt[42:43].encode("hex") == "02":
+        for rte in rip.rtes:
+            #Process algorithm
+            
+            #Calculate net mask
+            nMask = '{0:32b}'.format(rte.subnet)
+            count = 0
+            for i in range(0,31):
+                if nMask[i] == "1":
+                    count = 0
+                else:
+                    count +=1
+            nMask = 32 - count
+            
+            if DEBUG:
+                print "Net Mask is %d" % nMask
+            
+            #Convert int to IP for address from http://snipplr.com/view/14807/
+            octet = ''
+            for exp in [3,2,1,0]:
+                octet = octet + str(rte.addr / ( 256 ** exp )) + "."
+                rte.addr = rte.addr % ( 256 ** exp )
+            dotAddr = (octet.rstrip('.'))
+            if DEBUG:
+                print dotAddr
+            dotAddr = dotAddr + "/" +   str(nMask)
+            if DEBUG:
+                print dotAddr
+            dotAddr = ipaddr.IPv4Network(dotAddr)
 
-        #Convert int to IP for hop address from http://snipplr.com/view/14807/
-        octet = ''
-        for exp in [3,2,1,0]:
-            octet = octet + str(rte.next_hop / ( 256 ** exp )) + "."
-            rte.next_hop = rte.next_hop % ( 256 ** exp )
-        dotHop = (octet.rstrip('.'))
-        if DEBUG:
-            print dotHop
-        dotHop = ipaddr.IPv4Address(dotHop)
+            #Convert int to IP for hop address from http://snipplr.com/view/14807/
+            octet = ''
+            for exp in [3,2,1,0]:
+                octet = octet + str(rte.next_hop / ( 256 ** exp )) + "."
+                rte.next_hop = rte.next_hop % ( 256 ** exp )
+            dotHop = (octet.rstrip('.'))
+            if DEBUG:
+                print dotHop
+            dotHop = ipaddr.IPv4Address(dotHop)
 
-        #calculate the metric
-        met = min(rte.metric+1, 16)
-    
-    
-        #check for the route first
-        if checkRoute(dotAddr, dotHop, met) is False:
-            if rte.metric > 0 and rte.metric < 16:
-                if DEBUG:
-                    print "valid metric %d" % rte.metric
-                #adding route to the table
-                index = len(fwd_tbl)
-                fwd_tbl.append([])
-                fwd_tbl[index].append(dotAddr)
-                fwd_tbl[index].append(dotHop)
-                fwd_tbl[index].append(nMask)
-                fwd_tbl[index].append(met)
-                fwd_tbl[index].append(Timer(180, removeEntry, args=[fwd_tbl[index][0],fwd_tbl[index][1]]))
-                RCF = True
+            #calculate the metric
+            met = min(rte.metric+1, 16)
+        
 
+
+            #check for the route first
+            if checkRoute(dotAddr, dotHop, met) is False:
+                if rte.metric > 0 and rte.metric < 16:
+                    if DEBUG:
+                        print "valid metric %d" % rte.metric
+                    #adding route to the table
+                    index = len(fwd_tbl)
+                    fwd_tbl.append([])
+                    fwd_tbl[index].append(dotAddr)
+                    fwd_tbl[index].append(dotHop)
+                    fwd_tbl[index].append(nMask)
+                    fwd_tbl[index].append(met)
+                    fwd_tbl[index].append(Timer(180, removeEntry, args=[fwd_tbl[index][0],fwd_tbl[index][1]]))
+                    RCF = True
+        else:
+            #Convert from hex to int to IP for hop address from http://snipplr.com/view/14807/
+            sendTo = int(pkt[26:30].encode("hex"), 16)
+            octet = ''
+            for exp in [3,2,1,0]:
+                octet = octet + str(sendTo / ( 256 ** exp )) + "."
+                sendTo = sendTo % ( 256 ** exp )
+            dotHop = (octet.rstrip('.'))
+            sendTo = ipaddr.IPv4Address(sendTo)
+            send_update(sendTo, iface)
     fwd_tbl_srt = sorted(fwd_tbl, key=lambda x: int(x[2]), reverse=True)
     if RCF:
-        send_rte_update()
+        send_rte_update(queues)
         
         
 
@@ -327,25 +354,27 @@ def router_init(options, args):
 
 def callback(ts, pkt, iface, queues):
     
+    
     #The Response must be ignored if it is not from the RIP port. - Do Nothing
 
     #The datagram's IPv4 source address should be checked to see whether the
     #datagram is from a valid neighbor; the source of the datagram must be
     #on a directly-connected network.
     
-    
+   
     #catch IP then UDP
     if pkt[12:14].encode("hex") == "0800" and pkt[23:24].encode("hex") == "11" :
         #listen on port 502
         if pkt[36:38].encode("hex") == "0208":
+            #is this a request
             processRip(pkt, iface, queues)
-                #The datagram's IPv4 source address should be checked to see whether the
+                ###The datagram's IPv4 source address should be checked to see whether the
                 #datagram is from a valid neighbor; the source of the datagram must be
                 #on a directly-connected network.
                 #It is also worth checking to see whether the response is from one of the router's own addresses. - Do Nothing
         else:
             #verify no need to handle any other type of UDP packages
-            return
+            pass
 
     if pkt[12:14].encode("hex") == "0806":
         send_arp_resp(ts, iface, pkt, queues)
@@ -387,7 +416,7 @@ def run_output_interface(iface_num, q, trans_delay):
 
 
 if __name__ == "__main__":
-
+  global ripUpdate
   # Seed the random number generator
   random.seed()
 
@@ -403,7 +432,7 @@ if __name__ == "__main__":
 
   router_init(options, args)
     
-
+   
   # First, initialize our inputs
   generators = {}
   input_files = {}
@@ -422,7 +451,9 @@ if __name__ == "__main__":
     output_queues[i] = Queue(10)
     output_interfaces[i] = Process(target=run_output_interface, args=(i, output_queues[i], transmission_delay))
     output_interfaces[i].start()
-
+  #send update every 30 seconds
+  ripUpdate = Timer(30, send_rte_update, args=[output_queues])
+  ripUpdate.start()
   # h is a heap-based priority queue containing the next available packet from each interface.
   h = []
   # We start out by loading the first packet from each interface into h.
@@ -439,7 +470,7 @@ if __name__ == "__main__":
 
   ts = 0.0            # We keep track of the current packet's timestamp
   prev_ts = 0.0       # And the previous packet's timestamp
-
+  
   # While there are packets left to process, process them!
   while len(h) > 0:
     # Pop the next packet off the heap
@@ -455,7 +486,8 @@ if __name__ == "__main__":
       print "Main driver process sleeping for %1.3fs" % interarrival_time
     time.sleep(interarrival_time)
     prev_ts = ts
-
+    
+    
     # Call our callback function to handle the input packet
     callback(ts, pkt, iface, output_queues)
 
