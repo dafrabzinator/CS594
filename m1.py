@@ -37,6 +37,7 @@ import difflib
 import matplotlib
 import ipaddr
 import struct
+import socket
 
 from multiprocessing import Process, Queue
 from Queue import Full as QueueFullException
@@ -51,6 +52,8 @@ import dpkt
 # But the Ethernet module is fair game!
 # Feel free to use this one:
 from dpkt.ethernet import Ethernet  
+from dpkt.udp import UDP
+from dpkt.rip import RIP
 
 DEBUG = False
 
@@ -102,12 +105,15 @@ def send_arp_resp(ts, iface, pkt, queues):
     destIP = pkt[28:32]#slice from pkt sender IP
     destMac =  pkt[6:12]#slice from pkt sender Mac
     srcIP = pkt[38:42]#slide from pkt dest IP
-    ###NEED TO CONVERT TO DOT NOTATION
+    #Second Variable for Manipulation
     srcIP2 = srcIP
+    #Construct in Dot Notation for use in function check_iface
     srcConst = str(int((srcIP2[0:1].encode("hex")), 16)) + "." + str(int((srcIP2[1:2].encode("hex")), 16)) + "." + str(int((srcIP2[2:3].encode("hex")), 16)) + "." + str(int((srcIP2[3:4].encode("hex")), 16))
     catch = check_iface(srcConst)
     srcMac =  interface_tbl[int(catch)][0]
+    #split mac address to remove :
     srcMac = srcMac.split(":")
+    #Change to Int then Binary and Concatenate
     srcMacT = chr(int(srcMac[0], 16))
     srcMacT += chr(int(srcMac[1], 16))
     srcMacT += chr(int(srcMac[2], 16))
@@ -125,8 +131,10 @@ def send_arp_resp(ts, iface, pkt, queues):
     pkt = pkt[:28] + srcIP + pkt[32:]
     pkt = pkt[:32] + destMac + pkt[38:]
     pkt = pkt[:38] + destIP
-    print pkt.encode("hex")
-    
+    if DEBUG:
+        print pkt.encode("hex")
+
+    #prep for sending
     q = queues[iface]
     try:
         q.put( (ts,pkt) )
@@ -212,6 +220,8 @@ def valid_checksum(packet):
       print "Checksums did not match, packet should drop."
     return 0  
 
+
+
 # Written by Stacy
 # Decrement the TTL
 def decrement_ttl(packet):
@@ -258,6 +268,26 @@ def recompute_checksum(packet):
   packet = packet[:25] + chr(int(calc_checksum[4:6], 16)) + packet[26:]
 
   return packet
+
+# credit: Tyler
+def processRip(pkt, iface, queues):
+    eth = dpkt.ethernet.Ethernet(pkt)
+    ip = eth.data
+    udp = ip.data
+    rip = dpkt.rip.RIP(udp.data)
+    for rte in rip.rtes:
+        #Process algorithm
+        if rte.metric > 0 and rte.metric < 16:
+            if DEBUG:
+                print "valid metric %d" % rte.metric
+        if DEBUG:
+            print "family %d" % rte.family
+            print '{0:32b}'.format(rte.addr)
+            print rte.addr
+            print '{0:32b}'.format(rte.subnet)
+            print rte.subnet
+            print rte.next_hop
+
 
 
 def router_init(options, args):
@@ -348,7 +378,28 @@ def callback(ts, pkt, iface, queues):
    
     if DEBUG:
       print "" 
-    print ""
+
+    
+    #The Response must be ignored if it is not from the RIP port. - Do Nothing
+
+    #The datagram's IPv4 source address should be checked to see whether the
+    #datagram is from a valid neighbor; the source of the datagram must be
+    #on a directly-connected network.
+    
+    
+    #catch IP then UDP
+    if pkt[12:14].encode("hex") == "0800" and pkt[23:24].encode("hex") == "11" :
+        #listen on port 502
+        if pkt[36:38].encode("hex") == "0208":
+            processRip(pkt, iface, queues)
+                #The datagram's IPv4 source address should be checked to see whether the
+                #datagram is from a valid neighbor; the source of the datagram must be
+                #on a directly-connected network.
+                #It is also worth checking to see whether the response is from one of the router's own addresses. - Do Nothing
+        else:
+            #verify no need to handle any other type of UDP packages
+            return
+
     #check if arp, if so send an arp response. 
     if pkt[12:14].encode("hex") == "0806":
         send_arp_resp(ts, iface, pkt, queues)
@@ -359,7 +410,8 @@ def callback(ts, pkt, iface, queues):
       # verify checksum.  if invalid can drop the packet.
       if valid_checksum(pkt) == 1:
         outgoing_iface = forward_IP_packets_to_iface(pkt)
-        print "Outgoing Interface: %s" %int(outgoing_iface)
+        if DEBUG:
+          print "Outgoing Interface: %s" %int(outgoing_iface)
         # decrement TTL
         pkt = decrement_ttl(pkt)
         if pkt != 0:
