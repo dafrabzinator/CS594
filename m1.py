@@ -53,7 +53,6 @@ import dpkt
 
 # But the Ethernet module is fair game!
 # Feel free to use this one:
-
 from dpkt.ethernet import Ethernet
 from dpkt.udp import UDP
 from dpkt.rip import RIP
