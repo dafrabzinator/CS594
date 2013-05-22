@@ -53,6 +53,7 @@ import dpkt
 
 # But the Ethernet module is fair game!
 # Feel free to use this one:
+
 from dpkt.ethernet import Ethernet
 from dpkt.udp import UDP
 from dpkt.rip import RIP
@@ -60,6 +61,9 @@ from dpkt.rip import RIP
 DEBUG = False
 
 num_interfaces = 0
+
+# our Global definitions
+
 # dictionary for mac address table
 mac_tbl = {}
 # list of list for interface table
@@ -68,11 +72,12 @@ fwd_tbl = []
 fwd_tbl_srt = []
 RCF = False
 
-
+# Our new functions
 ##
 ##
-## Sited Sources May be Needed
+## Cited Sources May be Needed
 
+# credit: Tyler?
 def check_fwd(ck_add):
     global fwd_tbl_srt
     #Iterate through list from top to bottom returning the Forward address
@@ -83,6 +88,7 @@ def check_fwd(ck_add):
             #returns the address found in the fwd_tbl
             return i[1]
 
+# credit: Tyler?
 def check_iface(ck_add):
     global interface_tbl
     #Relocate this code to a function called locate add a counter
@@ -94,6 +100,7 @@ def check_iface(ck_add):
             #retuns the interface port for the matched address
             return i[2]
 
+# credit: Tyler?
 def send_arp_resp(ts, iface, pkt, queues):
     global interface_tbl
     
@@ -137,6 +144,138 @@ def send_arp_resp(ts, iface, pkt, queues):
         q.put( (ts,pkt) )
     except QueueFullException:
         drop_count += 1
+
+# Written by Stacy
+# Ignore Ethernet frames addressed to other devices on the LAN
+# This function should take in an ethernet frame, check the MAC address to
+# see if it is us on this interface.  If so, returns a 1.  If not, return "None".
+def ethernet_for_us(packet, arrival_iface):
+  global interface_tbl
+  # first, turn the packet into readable ethernet:
+  eth = dpkt.ethernet.Ethernet(packet)
+
+  # now check our interface table to see if the interface it came in on matches
+  # the MAC address being sent to.  If not, we ignore it. 
+  strng = interface_tbl[arrival_iface][0]
+  newstr = strng.replace(":", "")
+
+  if (eth.dst.encode("hex") == newstr):
+    if DEBUG:
+      print "Arrival interface MAC %s" %interface_tbl[arrival_iface][0]
+    return 1
+  else:
+    if DEBUG:
+      print "Source and dest interfaces do not match"
+    return 0
+
+# Written by Stacy
+# Function to forward IP packets to the proper outbound interface based on
+# longest-prefix matching.  Takes in the ethernet packet, returns the interface
+# to send out on.  
+def forward_IP_packets_to_iface(packet):
+  # get the destination IP out of the ethernet data payload (the IP packet)
+  dest_ip = packet[30:34]
+  dest_ip = dest_ip.encode("hex")
+
+  # turn this into the quad address we stored the table as
+  pretty_ip = str(int(dest_ip[0:2], 16)) + "." +  str(int(dest_ip[2:4], 16)) + "." + str(int(dest_ip[4:6], 16)) + "." + str(int(dest_ip[6:8], 16))
+
+  if DEBUG:
+    print "Destination IP: %s" %pretty_ip
+  #Test Look Up Return IPV4 address object based on longest prefix match
+  catch = check_fwd(pretty_ip)
+  if DEBUG:
+    print "IP of outgoing interface %s" %catch
+  catch2 = check_iface(catch)
+  if DEBUG:
+    print "interface of the ip being sent to: %s \n" %catch2
+  return catch2
+  
+# Written by Stacy
+# verify checksum.  if invalid can drop the packet.
+def valid_checksum(packet):
+  # pull the expected checksum out of the header
+  pkt_value = packet[24:26]
+  packet_header = packet[14:34]
+  
+  sum = 0
+  # compute the expected checksum
+  ##### math: (14 +2i) to (14 +2i +2) add the numbers all together in hex
+  for i in range(0, 10):
+    if i != 5: 
+      temp = packet_header[2*i:2*i+2].encode("hex")
+      sum += int(temp, 16)
+    else:
+      pass
+   
+  ##### then do the 1's complement: div(result) + mod(result).  That's the expected.
+  sum =   (sum % int('ffff', 16)) 
+  calc_checksum = hex(sum ^ 0xFFFF)
+  if DEBUG:
+    print "Calculated xor checksum: %s" %calc_checksum
+    print "Original checksum: %s" %pkt_value.encode("hex")
+
+  if int(pkt_value.encode("hex"), 16) == int(calc_checksum, 16):
+    if DEBUG:
+      print "Checksums matched, value was: %s" %pkt_value.encode("hex")
+    return 1
+  else:
+    if DEBUG:
+      print "Checksums did not match, packet should drop."
+    return 0  
+
+
+
+# Written by Stacy
+# Decrement the TTL
+def decrement_ttl(packet):
+  if packet[22] == 1:
+    # send ICMP "Time Exceeded" message
+    if DEBUG:
+      print "Time Exceeded for this packet"
+    return 0
+  else:
+    old_ttl = int(pkt[22:23].encode("hex"), 16)
+    new_ttl = old_ttl - 1
+    if DEBUG:
+      print "Original TTL: %s" %old_ttl
+      print "New TTL: %s" %new_ttl
+    packet = packet[:22] + chr(new_ttl) + packet[23:]
+    return packet
+
+
+# Written by Stacy
+# recompute the IP header checksum based on the new header
+def recompute_checksum(packet):
+  # pull the header out for computation
+  packet_header = packet[14:34]
+  
+  sum = 0
+  # compute the checksum
+  ##### math: (14 +2i) to (14 +2i +2) add the numbers all together in hex
+  for i in range(0, 10):
+    if i != 5: 
+      temp = packet_header[2*i:2*i+2].encode("hex")
+      sum += int(temp, 16)
+    else:
+      pass
+   
+  ##### then do the 1's complement: div(result) + mod(result).  That's the expected.
+  sum =   (sum % int('ffff', 16)) 
+  calc_checksum = hex(sum ^ 0xFFFF)
+  calc_checksum = "{0:#0{1}x}".format(int(calc_checksum, 16),6)
+  if DEBUG:
+    print "Calculated xor checksum: %s" %calc_checksum
+  
+  # to update:::::::: pkt_value = packet[24:26]
+  packet = packet[:24] + chr(int(calc_checksum[2:4], 16)) + packet[25:]
+  packet = packet[:25] + chr(int(calc_checksum[4:6], 16)) + packet[26:]
+
+  return packet
+
+
+
+
 
 #send updates to all neighbors
 #use dictionary to add neighbor IP addresses from forwarding table
@@ -189,6 +328,7 @@ def removeEntry(netwk, ipAd):
                 i[4].close()
                 del fwd_tbl_srt[i]
 
+# credit: Tyler
 def processRip(pkt, iface, queues):
     global RCF
     global fwd_tbl
@@ -293,7 +433,8 @@ def router_init(options, args):
     global fwd_tbl_srt
     
     # Open up interfaces config File
-    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/interfaces.conf")
+#    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/interfaces.conf")
+    f = open("M1-test04/interfaces.conf")
     line_cnt = 0
     for line in f:
         line = line.split()
@@ -310,7 +451,8 @@ def router_init(options, args):
     num_interfaces = line_cnt
 
     #Open up static mac table
-    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/MAC-address-table.txt")
+#    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/MAC-address-table.txt")
+    f = open("M1-test04/MAC-address-table.txt")
     for line in f:
         line = line.split()
         if line[0] == "#":
@@ -319,7 +461,8 @@ def router_init(options, args):
             mac_tbl[line[0]] = line[1]
             
     #Open up static forwarding table
-    f= open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/forwarding.conf")
+#    f= open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/forwarding.conf")
+    f= open("M1-test04/forwarding.conf")
     line_cnt = 0
     for line in f:
         line = line.split()
@@ -341,6 +484,7 @@ def router_init(options, args):
 
     fwd_tbl_srt = sorted(fwd_tbl, key=lambda x: int(x[2]), reverse=True)
     if DEBUG:
+        print "Forwarding Table:"
         print fwd_tbl_srt
 
 
@@ -353,7 +497,9 @@ def router_init(options, args):
 
 
 def callback(ts, pkt, iface, queues):
-    
+
+    if DEBUG:
+      print "" 
     
     #The Response must be ignored if it is not from the RIP port. - Do Nothing
 
@@ -376,16 +522,32 @@ def callback(ts, pkt, iface, queues):
             #verify no need to handle any other type of UDP packages
             pass
 
+    #check if arp, if so send an arp response. 
     if pkt[12:14].encode("hex") == "0806":
         send_arp_resp(ts, iface, pkt, queues)
     
-    #Test Look Up Return IPV4 address object based on longest prefix match
-    catch = check_fwd('128.255.255.255')
-    if DEBUG:
-        print catch
-    catch2 = check_iface('128.75.247.146')
-    if DEBUG:
-        print catch2
+    # check if the packet is for us, otherwise ignore it.
+    elif ethernet_for_us(pkt, iface) == 1:
+
+      # verify checksum.  if invalid can drop the packet.
+      if valid_checksum(pkt) == 1:
+        outgoing_iface = forward_IP_packets_to_iface(pkt)
+        if DEBUG:
+          print "Outgoing Interface: %s" %int(outgoing_iface)
+        # decrement TTL
+        pkt = decrement_ttl(pkt)
+        if pkt != 0:
+          # recompute the corrected checksum:
+          pkt = recompute_checksum(pkt)
+
+          # then enqueue on the appropriate interface:
+          q = queues[int(outgoing_iface)]
+          try:
+              q.put( (ts,pkt) )
+          except QueueFullException:
+              drop_count += 1
+
+
 
 
 def get_packet(g):
@@ -398,7 +560,8 @@ def get_packet(g):
 
 
 def run_output_interface(iface_num, q, trans_delay):
-  filename = "/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/output-%d.pcap" % iface_num
+#  filename = "/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/output-%d.pcap" % iface_num
+  filename = "/Users/stacy/Desktop/CS 594/proj2/output_test/output-%d.pcap" % iface_num
   f = open(filename, "wb")
   writer = dpkt.pcap.Writer(f)
   while True:
@@ -437,7 +600,8 @@ if __name__ == "__main__":
   generators = {}
   input_files = {}
   for i in range(num_interfaces):
-    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/M2-test01/input-%d.pcap" % i, "rb")
+#    f = open("/Users/tylerfetters/Desktop/CS594/test/Project2/Project2/Project2/input-%d.pcap" % i, "rb")
+    f = open("M1-test04/input-%d.pcap" % i, "rb")
     input_files[i] = f
     reader = dpkt.pcap.Reader(f)
     generator = reader.__iter__()
