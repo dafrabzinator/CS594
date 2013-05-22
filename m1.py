@@ -39,6 +39,8 @@ import ipaddr
 import struct
 import socket
 
+
+from threading import Thread, Event, Timer
 from multiprocessing import Process, Queue
 from Queue import Full as QueueFullException
 
@@ -64,6 +66,7 @@ mac_tbl = {}
 interface_tbl = []
 fwd_tbl = []
 fwd_tbl_srt = []
+RCF = False
 
 ##
 ##
@@ -92,6 +95,7 @@ def check_iface(ck_add):
 
 def send_arp_resp(ts, iface, pkt, queues):
     global interface_tbl
+    
     if DEBUG:
         print pkt.encode("hex")
     destIP = pkt[28:32]#slice from pkt sender IP
@@ -133,16 +137,118 @@ def send_arp_resp(ts, iface, pkt, queues):
     except QueueFullException:
         drop_count += 1
 
+#send updates to all neighbors
+#use dictionary to add neighbor IP addresses from forwarding table
+def send_rte_update():
+    pass
+
+#function used to return true if route exists and is already
+def checkRoute(netwk, ipAd, metr):
+    for i in fwd_tbl_srt:
+        if netwk in i[0]:
+            if ipAd in i[1]:
+                if metr == i[3]:
+                    i[4].cancel()
+                    i[4].start()
+                    return True
+                elif metr == 16:
+                    i[4].cancel()
+                    removeEntry(netwk, ipAd)
+                    RCF = True
+                    return True
+                else:
+                    i[3] = metr
+                    i[4].cancel()
+                    i[4].start()
+                    RCF = True
+                    return True
+            #returns the address found in the fwd_tbl
+        else:
+            return False
+
+def removeEntry(netwk, ipAd):
+    for i in fwd_tbl_srt:
+        if netwk in i[0]:
+            if ipAd in i[1]:
+                i[4].close()
+                del fwd_tbl_srt[i]
+
 def processRip(pkt, iface, queues):
+    global RCF
+    global fwd_tbl
+    global fwd_tbl_srt
+    
+    RCF = False
     eth = dpkt.ethernet.Ethernet(pkt)
     ip = eth.data
     udp = ip.data
     rip = dpkt.rip.RIP(udp.data)
     for rte in rip.rtes:
         #Process algorithm
-        if rte.metric > 0 and rte.metric < 16:
-            if DEBUG:
-                print "valid metric %d" % rte.metric
+        
+        #Calculate net mask
+        nMask = '{0:32b}'.format(rte.subnet)
+        count = 0
+        for i in range(0,31):
+            if nMask[i] == "1":
+                count = 0
+            else:
+                count +=1
+        nMask = 32 - count
+        
+        if DEBUG:
+            print "Net Mask is %d" % nMask
+        
+        #Convert int to IP for address from http://snipplr.com/view/14807/
+        octet = ''
+        for exp in [3,2,1,0]:
+            octet = octet + str(rte.addr / ( 256 ** exp )) + "."
+            rte.addr = rte.addr % ( 256 ** exp )
+        dotAddr = (octet.rstrip('.'))
+        if DEBUG:
+            print dotAddr
+        dotAddr = dotAddr + "/" +   str(nMask)
+        if DEBUG:
+            print dotAddr
+        dotAddr = ipaddr.IPv4Network(dotAddr)
+
+        #Convert int to IP for hop address from http://snipplr.com/view/14807/
+        octet = ''
+        for exp in [3,2,1,0]:
+            octet = octet + str(rte.next_hop / ( 256 ** exp )) + "."
+            rte.next_hop = rte.next_hop % ( 256 ** exp )
+        dotHop = (octet.rstrip('.'))
+        if DEBUG:
+            print dotHop
+        dotHop = ipaddr.IPv4Address(dotHop)
+
+        #calculate the metric
+        met = min(rte.metric+1, 16)
+    
+    
+        #check for the route first
+        if checkRoute(dotAddr, dotHop, met) is False:
+            if rte.metric > 0 and rte.metric < 16:
+                if DEBUG:
+                    print "valid metric %d" % rte.metric
+                #adding route to the table
+                index = len(fwd_tbl)
+                fwd_tbl.append([])
+                fwd_tbl[index].append(dotAddr)
+                fwd_tbl[index].append(dotHop)
+                fwd_tbl[index].append(nMask)
+                fwd_tbl[index].append(met)
+                fwd_tbl[index].append(Timer(180, removeEntry, args=[fwd_tbl[index][0],fwd_tbl[index][1]]))
+                RCF = True
+
+    fwd_tbl_srt = sorted(fwd_tbl, key=lambda x: int(x[2]), reverse=True)
+    if RCF:
+        send_rte_update()
+        
+        
+
+        
+        
         if DEBUG:
             print "family %d" % rte.family
             print '{0:32b}'.format(rte.addr)
@@ -195,28 +301,15 @@ def router_init(options, args):
         else:
             fwd_tbl.append([])
             sub_line = line[0].split("/")
-            #Also superceed by ipaddr module
-            #sub_add = sub_line[0].split(".")
             netwk = ipaddr.IPv4Network(line[0])
             ipAd = ipaddr.IPv4Address(line[1])
             fwd_tbl[line_cnt].append(netwk)
             fwd_tbl[line_cnt].append(ipAd)
             fwd_tbl[line_cnt].append(sub_line[1])
+            fwd_tbl[line_cnt].append(1)
+            fwd_tbl[line_cnt].append(Timer(180, removeEntry, args=[fwd_tbl[line_cnt][0],fwd_tbl[line_cnt][1]]))
             
-            # This code has been commented as the IPAddr module better manages this process
-            #for s in sub_add:
-                #s = int(s)
-                #s = bin(s)
-                #sub_n = s[2:10]
-                #if sub_n.__len__() < 8:
-                    #0's in front of base
-                    #zeros = ""
-                    #for i in range(sub_n.__len__(), 8):
-                        #zeros += "0"
-                    #sub_n = zeros + sub_n
-                #sub_con += sub_n
-            #entry = sub_con[0:int(sub_line[1])]
-            #fwd_tbl[entry] = line[1]
+            
             line_cnt += 1
 
     fwd_tbl_srt = sorted(fwd_tbl, key=lambda x: int(x[2]), reverse=True)
