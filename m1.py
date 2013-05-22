@@ -133,27 +133,51 @@ def send_arp_resp(ts, iface, pkt, queues):
     except QueueFullException:
         drop_count += 1
 
-# Stacy's functions to write: 
-
+# Written by Stacy
 # Ignore Ethernet frames addressed to other devices on the LAN
 # This function should take in an ethernet frame, check the MAC address to
 # see if it is us on this interface.  If so, returns a 1.  If not, return "None".
 def ethernet_for_us(packet, arrival_iface):
+  global interface_tbl
   # first, turn the packet into readable ethernet:
   eth = dpkt.ethernet.Ethernet(packet)
 
   # now check our interface table to see if the interface it came in on matches
   # the MAC address being sent to.  If not, we ignore it. 
-  if (eth.dst == MAClookup[arrival_iface]):
+  strng = interface_tbl[arrival_iface][0]
+  newstr = strng.replace(":", "")
+
+  if (eth.dst.encode("hex") == newstr):
+    if DEBUG:
+      print "Arrival interface MAC %s" %interface_tbl[arrival_iface][0]
     return 1
   else:
-    return null
+    if DEBUG:
+      print "Source and dest interfaces do not match"
+    return 0
 
+# Written by Stacy
 # Function to forward IP packets to the proper outbound interface based on
-# longest-prefix matching.  Takes in the ethernet packet
+# longest-prefix matching.  Takes in the ethernet packet, returns the interface
+# to send out on.  
 def forward_IP_packets_to_iface(packet):
   # get the destination IP out of the ethernet data payload (the IP packet)
-  dest_ip = eth.data[30:34]
+  dest_ip = packet[30:34]
+  dest_ip = dest_ip.encode("hex")
+
+  # turn this into the quad address we stored the table as
+  pretty_ip = str(int(dest_ip[0:2], 16)) + "." +  str(int(dest_ip[2:4], 16)) + "." + str(int(dest_ip[4:6], 16)) + "." + str(int(dest_ip[6:8], 16))
+
+  if DEBUG:
+    print "Destination IP: %s" %pretty_ip
+  #Test Look Up Return IPV4 address object based on longest prefix match
+  catch = check_fwd(pretty_ip)
+  if DEBUG:
+    print "IP of outgoing interface %s" %catch
+  catch2 = check_iface(catch)
+  if DEBUG:
+    print "interface of the ip being sent to: %s \n" %catch2
+  return catch2
   
   # iterate, checking the first bit, second bit, third bit, etc.  
   # or, perhaps something more clever?
@@ -232,6 +256,7 @@ def router_init(options, args):
 
     fwd_tbl_srt = sorted(fwd_tbl, key=lambda x: int(x[2]), reverse=True)
     if DEBUG:
+        print "Forwarding Table:"
         print fwd_tbl_srt
 
 
@@ -245,18 +270,24 @@ def router_init(options, args):
 
 def callback(ts, pkt, iface, queues):
     
+    #check if arp, if so send an arp response. 
     if pkt[12:14].encode("hex") == "0806":
         send_arp_resp(ts, iface, pkt, queues)
     
     # check if the packet is for us, otherwise ignore it.
     if ethernet_for_us(pkt, iface) == 1:
+
+      # verify checksum.  if invalid can drop the packet.
+      #if valid_checksum == 1:
+        outgoing_iface = forward_IP_packets_to_iface(pkt)
+        print "Outgoing Interface: %s" %outgoing_iface
       
-      #Test Look Up Return IPV4 address object based on longest prefix match
-      catch = check_fwd('128.255.255.255')
-      if DEBUG:
+        #Test Look Up Return IPV4 address object based on longest prefix match
+        catch = check_fwd('128.255.255.255')
+        if DEBUG:
           print catch
-      catch2 = check_iface('128.75.247.146')
-      if DEBUG:
+        catch2 = check_iface('128.75.247.146')
+        if DEBUG:
           print catch2
 
 
