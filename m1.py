@@ -179,9 +179,38 @@ def forward_IP_packets_to_iface(packet):
     print "interface of the ip being sent to: %s \n" %catch2
   return catch2
   
-  # iterate, checking the first bit, second bit, third bit, etc.  
-  # or, perhaps something more clever?
-  # pydoc dpkt.ethernet
+# Written by Stacy
+# verify checksum.  if invalid can drop the packet.
+def valid_checksum(packet):
+  # pull the expected checksum out of the header
+  pkt_value = packet[24:26]
+  packet_header = packet[14:34]
+  
+  sum = 0
+  # compute the expected checksum
+  ##### math: (14 +2i) to (14 +2i +2) add the numbers all together in hex
+  for i in range(0, 10):
+    if i != 5: 
+      temp = packet_header[2*i:2*i+2].encode("hex")
+      sum += int(temp, 16)
+    else:
+      pass
+   
+  ##### then do the 1's complement: div(result) + mod(result).  That's the expected.
+  sum =   (sum % int('ffff', 16)) 
+  calc_checksum = hex(sum ^ 0xFFFF)
+  if DEBUG:
+    print "Calculated xor checksum: %s" %calc_checksum
+    print "Original checksum: %s" %pkt_value.encode("hex")
+
+  if int(pkt_value.encode("hex"), 16) == int(calc_checksum, 16):
+    if DEBUG:
+      print "Checksums matched, value was: %s" %pkt_value.encode("hex")
+    return 1
+  else:
+    if DEBUG:
+      print "Checksums did not match, packet should drop."
+    return 0  
 
 
 def router_init(options, args):
@@ -269,16 +298,19 @@ def router_init(options, args):
 
 
 def callback(ts, pkt, iface, queues):
-    
+   
+    if DEBUG:
+      print "" 
+    print ""
     #check if arp, if so send an arp response. 
     if pkt[12:14].encode("hex") == "0806":
         send_arp_resp(ts, iface, pkt, queues)
     
     # check if the packet is for us, otherwise ignore it.
-    if ethernet_for_us(pkt, iface) == 1:
+    elif ethernet_for_us(pkt, iface) == 1:
 
       # verify checksum.  if invalid can drop the packet.
-      #if valid_checksum == 1:
+      if valid_checksum(pkt) == 1:
         outgoing_iface = forward_IP_packets_to_iface(pkt)
         print "Outgoing Interface: %s" %outgoing_iface
       
