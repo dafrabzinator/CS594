@@ -34,12 +34,12 @@ import time
 import heapq
 import random
 import difflib
-import matplotlib
+import matplotlib.pyplot as plt
 import ipaddr
 import struct
 import socket
 
-
+from collections import defaultdict
 from threading import Thread, Event, Timer
 from multiprocessing import Process, Queue
 from Queue import Full as QueueFullException
@@ -70,6 +70,35 @@ interface_tbl = []
 fwd_tbl = []
 fwd_tbl_srt = []
 RCF = False
+
+# results tracking for graphical analysis
+results1 = defaultdict(int)
+list_of_results1 = []
+results2 = defaultdict(int)
+list_of_results2 = []
+output_byts = [0] * 4
+
+#variables used for Graphs command line
+count2 = 0
+output_cnt1 = [0] * 4
+
+#variables used for Graphs 20
+count3 = 0
+output_cnt2 = [0] * 4
+
+#variables used for Graphs 40
+count4 = 0
+output_cnt3 = [0] * 4
+
+#variables used for Graphs 100
+count5 = 0
+output_cnt4 = [0] * 4
+
+
+
+
+
+
 
 # Our new functions
 ##
