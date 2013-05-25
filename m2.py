@@ -30,10 +30,12 @@
 
 import os
 import sys
+import math
 import time
 import heapq
 import random
 import difflib
+import numpy as np
 import matplotlib.pyplot as plt
 import ipaddr
 import struct
@@ -72,10 +74,14 @@ fwd_tbl_srt = []
 RCF = False
 
 # results tracking for graphical analysis
-results1 = defaultdict(int)
-list_of_results1 = []
-results2 = defaultdict(int)
-list_of_results2 = []
+
+# intensity will be measured by a dictionary of tuples:
+# numseconds, number of packets that second
+# max in and max out track number of records total
+intensity_in = {}
+intensity_out = {}
+max_time = 0
+
 output_byts = [0] * 4
 
 #variables used for Graphs command line
@@ -93,11 +99,6 @@ output_cnt3 = [0] * 4
 #variables used for Graphs 100
 count5 = 0
 output_cnt4 = [0] * 4
-
-
-
-
-
 
 
 # Our new functions
@@ -170,6 +171,7 @@ def send_arp_resp(ts, iface, pkt, queues):
     q = queues[iface]
     try:
         q.put( (ts,pkt) )
+        count_intensity_out(ts, iface)
     except QueueFullException:
         drop_count += 1
 
@@ -302,8 +304,44 @@ def recompute_checksum(packet):
   return packet
 
 
+def count_intensity_in(ts, iface):
+  global intensity_in
+  global max_time
+
+  rounded_ts = int(math.floor(ts))
+  max_time = max (rounded_ts, max_time)
+
+  if intensity_in.has_key(iface) == False:
+     intensity_in[iface] = {}
+     intensity_in[iface][rounded_ts] = 1
+  else:
+    if intensity_in[iface].has_key(rounded_ts) == False:
+      intensity_in[iface][rounded_ts] = 1
+    else:
+      intensity_in[iface][rounded_ts] += 1
+  if DEBUG:
+    print "intensity in %s"%intensity_in
+  print "intensity in %s"%intensity_in
 
 
+def count_intensity_out(ts, iface):
+  global intensity_out
+  global max_time
+  
+  rounded_ts = int(math.floor(ts))
+  max_time = max (int(rounded_ts), max_time)
+
+  if intensity_out.has_key(iface) == False:
+     intensity_out[iface] = {}
+     intensity_out[iface][rounded_ts] = 1
+  else:
+    if intensity_out[iface].has_key(rounded_ts) == False:
+      intensity_out[iface][rounded_ts] = 1
+    else:
+      intensity_out[iface][rounded_ts] += 1
+  if DEBUG:
+    print "intensity out %s"%intensity_out
+  print "intensity out %s"%intensity_out
 
 #send updates to all neighbors
 #use dictionary to add neighbor IP addresses from forwarding table
@@ -572,6 +610,7 @@ def callback(ts, pkt, iface, queues):
           q = queues[int(outgoing_iface)]
           try:
               q.put( (ts,pkt) )
+              count_intensity_out(ts, int(outgoing_iface))
           except QueueFullException:
               drop_count += 1
 
@@ -681,6 +720,7 @@ if __name__ == "__main__":
     
     
     # Call our callback function to handle the input packet
+    count_intensity_in(ts, iface)
     callback(ts, pkt, iface, output_queues)
 
     p = get_packet(generators[iface])
@@ -706,4 +746,73 @@ if __name__ == "__main__":
     output_interfaces[i].join()
 
 
+  def f(t):
+    arr = [] 
+    if intensity_in.has_key(t) == False:
+      return [0]
+    else:
+      for j in range(0,max_time+1):
+        print arr
+        if intensity_in[t].has_key(j) == False:
+          print "should be a , 0"
+          arr = arr + [0]
+        else:
+          arr = arr + [intensity_in[t][j]]
+      print arr
+      return arr
 
+  def g(t):
+    arr = [] 
+    if intensity_out.has_key(t) == False:
+      return [0]
+    else:
+      for j in range(0,max_time+1):
+        if intensity_out[t].has_key(j) == False:
+          print "should be a , 0"
+          arr = arr + [0]
+        else:
+          arr = arr + [intensity_out[t][j]]
+      print arr
+      return arr
+
+  t1 = []
+  for k in range(0, max_time+1):
+    t1 = t1 + [k]
+  print "max_time: %s" %max_time
+  print "t1: %s" %t1
+  print "f(0): %s" %f(0)
+  print "g(0): %s" %g(0)
+
+  fig = plt.figure(1)
+  fig.suptitle('Intensity In and Out of the Router', fontsize=14, fontweight='bold')
+
+  ax = fig.add_subplot(221)
+  #plt.subplot(211)
+  ax.set_ylabel('Intensity in packet/sec')
+  ax.set_xlabel('Time in seconds')
+  ax.plot(t1, f(0), 'bo', label="test1")
+  ax.plot(t1, f(0), 'k')
+  ax.plot(t1, f(1), 'ro', label="test2")
+  ax.plot(t1, f(1), 'k')
+  ax.plot(t1, f(2), 'go', label="test3")
+  ax.plot(t1, f(2), 'k')
+  ax.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+  #l1 = ax.legend(loc=2, borderaxespad=0.)
+  #plt.figure.set_ylabel('Intensity')
+  #plt.figure.set_xlabel('Time')
+
+
+  bx = fig.add_subplot(223)
+  #plt.subplot(212)
+  bx.set_ylabel('Intensity in packet/sec')
+  bx.set_xlabel('Time in seconds')
+  bx.plot(t1, g(0), 'bo', label="test1")
+  bx.plot(t1, g(0), 'k')
+  bx.plot(t1, g(1), 'ro', label="test2")
+  bx.plot(t1, g(1), 'k')
+  bx.plot(t1, g(2), 'go', label="test3")
+  bx.plot(t1, g(2), 'k')
+  bx.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+  #plt.gca().add_artist(l1)
+
+  plt.show()
