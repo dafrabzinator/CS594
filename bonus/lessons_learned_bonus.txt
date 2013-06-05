@@ -1,0 +1,23 @@
+
+
+I've learned a lot about the software development process yet again.  
+
+In the process of making this program, blah blah
+
+
+did you know wireshark's default when saving a capture is its own native format?
+
+I got the error:
+
+Gigabot:bonus stacy$ python start.py -f wikipedia_page.pcap 
+Traceback (most recent call last):
+  File "start.py", line 95, in <module>
+    reader = dpkt.pcap.Reader(f)
+  File "/Library/Frameworks/Python.framework/Versions/7.3/lib/python2.7/site-packages/dpkt/pcap.py", line 104, in __init__
+    raise ValueError, 'invalid tcpdump header'
+ValueError: invalid tcpdump header
+
+
+... turns out wireshark actually outputs its own version by default.
+if you do a save-as, you can choose a tcpdump pcap option which gives the format the program was expecting.
+
