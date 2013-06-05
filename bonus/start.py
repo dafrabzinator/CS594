@@ -95,35 +95,7 @@ if __name__ == "__main__":
   reader = dpkt.pcap.Reader(f)
   generator = reader.__iter__()
 
-  
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  # next output?  initialize things for streams.  also want to create the structure
 
 
