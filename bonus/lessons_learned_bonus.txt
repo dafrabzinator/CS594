@@ -21,3 +21,8 @@ ValueError: invalid tcpdump header
 ... turns out wireshark actually outputs its own version by default.
 if you do a save-as, you can choose a tcpdump pcap option which gives the format the program was expecting.
 
+
+interesting site on pcap and dpkt usage:
+http://www.commercialventvac.com/dpkt.html#mozTocId145523
+
+

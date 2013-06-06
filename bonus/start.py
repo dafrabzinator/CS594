@@ -49,11 +49,27 @@ DEBUG = False
 # dictionary for streams table
 stream_tbl = {}
 
-def callback(ts, pkt, iface, queues):
+def extract_flows(ts, pkt):
    
-    if DEBUG:
-      print "" 
-    pass
+  if DEBUG:
+    print "" 
+  pass
+  # strip off eth
+  # dpkt.ip.src
+  # dpkt.ip.dst
+  # dpkt.tcp.sport
+  # dpkt.tcp.dport
+  # dpkt.tcp.data
+
+  # information to tell us where this piece goes:
+  # dpkt.tcp.seq give us the sequence number for reassembly.  
+
+  # parse out the IPs and the ports
+
+  # put all 6 pieces into the dict
+
+  # return the modified dict
+
 
 def get_packet(g):
   packet = None
@@ -91,11 +107,40 @@ if __name__ == "__main__":
   FILE = options.file
   
   # First, initialize our inputs
+  generator = {}
+
   f = open("%s" % FILE, "rb")
   reader = dpkt.pcap.Reader(f)
   generator = reader.__iter__()
 
+  # Initialize our output dictionary
+  output_flows = {}
 
-  # next output?  initialize things for streams.  also want to create the structure
+  # h is a heap-based priority queue containing the next available packet
+  h = []
+  # We start out by loading the first packet into h.
+  # We always use the heapq functions to access h; this way, we preserve the heap invariant.
+  p = get_packet(generator)
+  if p is not None:
+    ts, pkt = p
+    heapq.heappush(h, (ts, pkt))
+
+  # Now we're ready to iterate over all the packets from all the input files.
+  # By using the heapq functions, we guarantee that we process the packets in 
+  # the order of their arrival
+  # This was kept so as to be able to handle multiple input files if needed in the future.
+  
+  ts = 0.0            # We keep track of the current packet's timestamp
+  prev_ts = 0.0       # And the previous packet's timestamp
+
+  # While there are packets left to process, process them!
+  while len(h) > 0:
+    # Pop the next packet off the heap
+    p = heapq.heappop(h)
+    # Unwrap the tuple.  The heap contains duples of (timestamp, packet contents)
+    ts, pkt = p
+
+  # Call extract-flows to add it to the dictionary of flows. 
+  extract_flows(ts, pkt)
 
 
