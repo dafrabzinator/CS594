@@ -1,5 +1,11 @@
 #!/usr/bin/python
 
+# Stacy J Watts
+# CS 594 - Internetworking Protocols at Portland State University
+# Bonus Project
+# TCP Stream reassembly
+# Source is my modification of Professor Wright's original work.
+
 #  Copyright (c) 2013 Charles V Wright <cvwright@cs.pdx.edu>
 #  All rights reserved.
 #
@@ -29,46 +35,66 @@
 
 import os
 import sys
-import time
+import dpkt
 import heapq
-import random
-import difflib
 import ipaddr
-import struct
-import socket
-
-from multiprocessing import Process, Queue
-from Queue import Full as QueueFullException
 
 from optparse import OptionParser
 
-import dpkt
-
 DEBUG = False
 
-# dictionary for streams table
-stream_tbl = {}
 
-def extract_flows(ts, pkt):
-   
+
+# Stacy's original work.
+# utility to convert an ip input from binary to dotted-quad for human-readability.
+
+def bin_to_IPv4(dest_ip):
+
+  dest_ip = dest_ip.encode("hex")
+  pretty_ip = str(int(dest_ip[0:2], 16)) + "." +  str(int(dest_ip[2:4], 16)) + "." + str(int(dest_ip[4:6], 16)) + "." + str(int(dest_ip[6:8], 16))
+
+  return pretty_ip
+
+
+
+# Stacy's original work.
+# extracts the flow information from a packet
+# places that flow information into the dictionary and returns it.  
+# uses dpkt.tcp dpkt.ethernet dpkt.tcp 
+# returns the modified dictionary of flows.
+
+def extract_flows(ts, pkt, output_flows):
+
   if DEBUG:
-    print "" 
-  pass
+    print "Packet at timestamp: %f" % ts
+
   # strip off eth
-  # dpkt.ip.src
-  # dpkt.ip.dst
-  # dpkt.tcp.sport
-  # dpkt.tcp.dport
-  # dpkt.tcp.data
-
-  # information to tell us where this piece goes:
-  # dpkt.tcp.seq give us the sequence number for reassembly.  
-
   # parse out the IPs and the ports
+  eth = dpkt.ethernet.Ethernet(pkt)
+  ip = eth.data
+  tcp = ip.data
+
+  # source and destination IPs human-readable:
+  source_ip = bin_to_IPv4(ip.src)
+  dest_ip = bin_to_IPv4(ip.dst)
+
+  # create the 4-tuple key to the flows
+  flow = (source_ip, dest_ip, tcp.sport, tcp.dport)
 
   # put all 6 pieces into the dict
+  if flow in output_flows:
+    output_flows[flow] += [(ts, tcp.data)]
+  else:
+    output_flows[flow] = [(ts, tcp.data)]
+ 
+  # for the future of TCP reassembly, we will want: 
+  # information to tell us where this piece goes, ie
+  # dpkt.tcp.seq  
+  # gives us the sequence number for reassembly.  
+  # tcp.data length will give us the offset to work from.
 
   # return the modified dict
+  return output_flows
 
 
 def get_packet(g):
@@ -78,21 +104,6 @@ def get_packet(g):
   except StopIteration:
     packet = None
   return packet
-
-### might not actually need the writer, if we don't need to write out the streams to other files.
-def run_output_interface(iface_num, q, trans_delay):
-  filename = "output_file.pcap"
-  f = open(filename, "wb")
-  writer = dpkt.pcap.Writer(f)
-  while True:
-    p = q.get()
-    if p is None: 
-      writer.close()
-      f.close()
-      break
-    ts, pkt = p
-    time.sleep(trans_delay)
-    writer.writepkt(pkt, ts+trans_delay)
 
 
 if __name__ == "__main__":
@@ -108,6 +119,9 @@ if __name__ == "__main__":
   
   # First, initialize our inputs
   generator = {}
+
+  # dictionary for streams table
+  output_flows = {}
 
   f = open("%s" % FILE, "rb")
   reader = dpkt.pcap.Reader(f)
@@ -140,7 +154,24 @@ if __name__ == "__main__":
     # Unwrap the tuple.  The heap contains duples of (timestamp, packet contents)
     ts, pkt = p
 
-  # Call extract-flows to add it to the dictionary of flows. 
-  extract_flows(ts, pkt)
+    # Call extract-flows to add it to the dictionary of flows. 
+    output_flows = extract_flows(ts, pkt, output_flows)
 
+    p = get_packet(generator)
+    if p is not None:
+      # The individual input generator provides us with timestamps and packet contents
+      ts, pkt = p
+      heapq.heappush(h, (ts, pkt))
+    else:
+      if DEBUG:
+        print "The input file has no more packets"
 
+  # Now that we're done reading, we can close our input file.
+  f.close()
+
+  # for fun, it will display the streams to screen:
+  for key in output_flows:
+    print key
+    print output_flows[key]
+    print ""
+  print "There were %s tcp streams counted.\n" % len(output_flows)

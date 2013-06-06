@@ -2,8 +2,6 @@
 
 I've learned a lot about the software development process yet again.  
 
-In the process of making this program, blah blah
-
 
 did you know wireshark's default when saving a capture is its own native format?
 
@@ -22,7 +20,17 @@ ValueError: invalid tcpdump header
 if you do a save-as, you can choose a tcpdump pcap option which gives the format the program was expecting.
 
 
+
 interesting site on pcap and dpkt usage:
 http://www.commercialventvac.com/dpkt.html#mozTocId145523
 
 
+
+Gigabot:bonus stacy$ time for i in {1..100}; do python start.py; done
+
+real  0m16.539s
+user  0m10.008s
+sys 0m5.474s
+
+
+I kept a running text file while I was working so as I found snippets or ideas I could come back to them, and later expound on them in this writeup.  It helped me track where I'd been as well, to pick up interesting ideas again to try a new approach.  
