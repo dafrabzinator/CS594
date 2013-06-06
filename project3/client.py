@@ -41,8 +41,14 @@ def extract_url(url):
   return tokens
 
 
+
+# does a simple dns lookup based on the hostname provided.
+# returns the first answer.  (note: returns the first if multiple answers)
 def dns_lookup(hostname):
-  pass
+  hostIP = socket.gethostbyname(hostname)
+  if DEBUG:
+    print "URL IP address: %s " % hostIP
+  return hostIP
 
 if __name__ == "__main__":
 
