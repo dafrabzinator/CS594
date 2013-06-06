@@ -62,8 +62,10 @@ def bin_to_IPv4(dest_ip):
 # places that flow information into the dictionary and returns it.  
 # uses dpkt.tcp dpkt.ethernet dpkt.tcp 
 # returns the modified dictionary of flows.
+# in the case of out-of-order arrival, places pending packet in a holding area.
+# 
 
-def extract_flows(ts, pkt, output_flows):
+def extract_flows(ts, pkt, output_flows, seq_numbers, pending):
 
   if DEBUG:
     print "Packet at timestamp: %f" % ts
@@ -83,9 +85,31 @@ def extract_flows(ts, pkt, output_flows):
 
   # put all 6 pieces into the dict
   if flow in output_flows:
-    output_flows[flow] += [(ts, tcp.data)]
+    #get the syn flag to determine if this is a re-opened connection
+    syn_flag = ( tcp.flags & dpkt.tcp.TH_SYN ) != 0
+
+    # if this is a new syn or syn/ack packet, we reset the seq #
+    if syn_flag == True:
+      #set the seq number
+      seq_numbers(flow) == tcp.seq
+      # reset the pending packets for that flow, if any.
+      pending.pop(flow, None)
+      # add it to the flows.
+      output_flows[flow] += [(ts, tcp.data)]
+    else:
+      #otherwise this is an open, existing connection to add to.
+      if check seq is ok
+        # do the addition to the flow
+        output_flows[flow] += [(ts, tcp.data)]
+      else:
+        check holding
+        add to holding
+
+  # otherwise, not present yet, so we create the flow and the seq #.
   else:
     output_flows[flow] = [(ts, tcp.data)]
+    seq_numbers[flow] = tcp.seq + len(tcp.data)
+
  
   # for the future of TCP reassembly, we will want: 
   # information to tell us where this piece goes, ie
