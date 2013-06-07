@@ -1,19 +1,21 @@
 #!/usr/bin/env python
 
+# Stacy Watts
+# CS 594 - Internetworking Protocols
+# Portland State University
+# Spring 2013
+# Program 3
+
 # Milestone 1. HTTP Client  (20 points)
-# You will begin by creating a simple client program. Start with the example program at:
-# http://wiki.python.org/moin/TcpCommunication#Client
+# You will begin by creating a simple client program. Start with the example 
+# program at: http://wiki.python.org/moin/TcpCommunication#Client
 
 import sys
 import socket
 from optparse import OptionParser
 
-
 # global constants
 PORT = 80  # default port.  port 80 is HTTP.  to change connection port, change this
-
-
-
 
 
 # extracts the url by parsing out the slashes, checks for the leading http
@@ -58,22 +60,25 @@ def start_TCP(hostIP, port):
 # requests index.html .
 def create_message(tokens):
   message = "GET "
-  if len(tokens) == 0:
+  if len(tokens) == 1:
     message = message + "/index.html"
   else:
-    for i in range(len(tokens)):
+    for i in range(1, len(tokens)):
       message = message + "/" + tokens[i]
-  message = message + " HTTP/1.1\r\n\r\n"
+    if "." not in tokens[len(tokens)-1]:
+      message = message + "index.html"
+  message = message + " HTTP/1.1\r\n"
+  message = message + "Host: " + tokens[0] + "\r\n\r\n"
   if DEBUG:
     print "Request to send: %s" % message
   return message
 
 
 
+# send the request
 def send_request(s, message):
   BUFFER_SIZE = 1024
-  MESSAGE = "GET /index.html HTTP/1.1\r\n\r\n"
-  s.send(MESSAGE)
+  s.send(message)
   data = s.recv(BUFFER_SIZE)
   s.close()
   if DEBUG:
@@ -110,7 +115,7 @@ if __name__ == "__main__":
   s = start_TCP(hostIP, PORT)
 
 #   - Submit a valid HTTP 1.1 request for the desired URL 
-  message = create_message(url[1:])
+  message = create_message(url)
   send_request(s, message)
 
 #   - Parse the return code from the response
