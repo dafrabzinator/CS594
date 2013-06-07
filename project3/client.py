@@ -21,7 +21,8 @@ import socket
 from optparse import OptionParser
 
 # global constants
-PORT = 80  # default port.  port 80 is HTTP.  to change connection port, change this
+PORT = 80  # default port.  port 80 is HTTP, to change connection port, change this
+           # please note: this has only been tested with port 80.
 
 
 # extracts the url by parsing out the slashes, checks for the leading http
@@ -89,15 +90,27 @@ def TCP_request(s, message):
 
 # Take in the TCP response
 def TCP_recv(s, length):
+  response = ''
   BUFFER_SIZE = 1024
   if length == -1:
-    data = s.recv(BUFFER_SIZE)
+    response = s.recv(BUFFER_SIZE)
   else:
-    data = s.recv(length)
-  if DEBUG:
-    print "\nReceived data:\n", data
-  return data
+    while 1:
+      data = s.recv(BUFFER_SIZE)
+      response = response + data
+      if not data: break
+  return response
 
+
+
+# Saves the information to the file and then closes it.
+def save_to_file(data, filename):
+  f = open(filename, 'a+')
+  f.write(data)
+  f.close()
+  if DEBUG:
+    print "%s saved."% filename
+  
 
 
 # Close the socket
@@ -123,7 +136,7 @@ def parse_response(response):
   code = code[1]
   if DEBUG:
     print "\nResponse code was: %s" % code
-    print "Length was: %s" % length
+    print "Length will be: %s bytes, getting the file." % length
   return code, length
 
 
@@ -162,16 +175,18 @@ if __name__ == "__main__":
 
   # Parse the return code from the response
   code, length = parse_response(response)
-  if code == "200":  
-    response = TCP_recv(s, length)
-    
 
   # If the request was successful ("200 OK"), read the entire data from the 
   # server and save the returned object to a file with the name given on the 
   # command line. Your client must support retrieving files of more than a 
   # few KB, which require multiple calls to your socket's recv() method.
-
+  if code == "200":  
+    # put the first chunk into the file
+    data = response.split("\r\n\r\n",2)
+    data = data[1]
+    # get and put the rest of it into the file
+    data = data + TCP_recv(s, length)
+    save_to_file(data, filename)
+    
   # close the connection when finished.
   TCP_close(s)
-
-
