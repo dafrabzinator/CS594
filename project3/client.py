@@ -9,20 +9,10 @@ import socket
 from optparse import OptionParser
 
 
-def initialization(options, args):
-  # numbers will be different, that's it.
-  TCP_IP = '127.0.0.1'
-  TCP_PORT = 5005
-  BUFFER_SIZE = 1024
-  MESSAGE = "Hello, World!"
+# global constants
+PORT = 80  # default port.  port 80 is HTTP.  to change connection port, change this
 
-  s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  s.connect((TCP_IP, TCP_PORT))
-  s.send(MESSAGE)
-  data = s.recv(BUFFER_SIZE)
-  s.close()
 
-  print "received data:", data
 
 
 
@@ -50,6 +40,47 @@ def dns_lookup(hostname):
     print "URL IP address: %s " % hostIP
   return hostIP
 
+
+
+# This started from the code at: http://wiki.python.org/moin/TcpCommunication#Client
+# Takes in the host and port, 
+def start_TCP(hostIP, port):
+  TCP_IP = hostIP
+  TCP_PORT = port
+  s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  s.connect((TCP_IP, TCP_PORT))
+  return s
+
+
+
+# creates a valid HTTP request message format.
+# does some small error checking for a valid request.  if no page is requested,
+# requests index.html .
+def create_message(tokens):
+  message = "GET "
+  if len(tokens) == 0:
+    message = message + "/index.html"
+  else:
+    for i in range(len(tokens)):
+      message = message + "/" + tokens[i]
+  message = message + " HTTP/1.1\r\n\r\n"
+  if DEBUG:
+    print "Request to send: %s" % message
+  return message
+
+
+
+def send_request(s, message):
+  BUFFER_SIZE = 1024
+  MESSAGE = "GET /index.html HTTP/1.1\r\n\r\n"
+  s.send(MESSAGE)
+  data = s.recv(BUFFER_SIZE)
+  s.close()
+  if DEBUG:
+    print "\nReceived data:\n", data
+ 
+
+
 if __name__ == "__main__":
 
   # Parse command-line arguments
@@ -59,7 +90,7 @@ if __name__ == "__main__":
   (options, args) = parser.parse_args()
   DEBUG = options.debug
 
-  initialization(options, args)
+######  initialization(options, args)
 
 # Extract the hostname and URL from the command line
   url = sys.argv[1]
@@ -73,11 +104,14 @@ if __name__ == "__main__":
 
 # Perform a DNS lookup to retrieve the IP address for the server 
 # using socket.gethostbyname()
-  dns_lookup(url[0])
+  hostIP = dns_lookup(url[0])
 
-#   - Initiate a TCP connection to the server's IP address, port 80, using socket.socket
+# Initiate a TCP connection to the server's IP address, port 80, using socket.socket
+  s = start_TCP(hostIP, PORT)
 
 #   - Submit a valid HTTP 1.1 request for the desired URL 
+  message = create_message(url[1:])
+  send_request(s, message)
 
 #   - Parse the return code from the response
 
