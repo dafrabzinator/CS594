@@ -10,6 +10,12 @@
 # You will begin by creating a simple client program. Start with the example 
 # program at: http://wiki.python.org/moin/TcpCommunication#Client
 
+# The command-line syntax for running your program will be: 
+#   python client.py <URL> <filename> 
+#   For example, to fetch http://www.cs.pdx.edu/index.html, 
+#   python client.py http://www.cs.pdx.edu/index.html cs.html
+# To set debug, use python client.py <URL> <filename> --debug
+
 import sys
 import socket
 from optparse import OptionParser
@@ -44,8 +50,8 @@ def dns_lookup(hostname):
 
 
 
-# This started from the code at: http://wiki.python.org/moin/TcpCommunication#Client
-# Takes in the host and port, 
+# This began from the code at: http://wiki.python.org/moin/TcpCommunication#Client
+# Takes in the host and port, starts the connection, returns the connection.
 def start_TCP(hostIP, port):
   TCP_IP = hostIP
   TCP_PORT = port
@@ -56,7 +62,7 @@ def start_TCP(hostIP, port):
 
 
 # creates a valid HTTP request message format.
-# does some small error checking for a valid request.  if no page is requested,
+# does some small error checking for a valid request.  If no page is requested,
 # requests index.html .
 def create_message(tokens):
   message = "GET "
@@ -76,16 +82,39 @@ def create_message(tokens):
 
 
 # send the request
-def send_request(s, message):
-  BUFFER_SIZE = 1024
+def TCP_request(s, message):
   s.send(message)
+
+
+
+# Take in the TCP response
+def TCP_recv(s):
+  BUFFER_SIZE = 1024
   data = s.recv(BUFFER_SIZE)
-  s.close()
   if DEBUG:
     print "\nReceived data:\n", data
- 
+  return data
 
 
+
+# Close the socket
+def TCP_close(s):
+  s.close()
+
+
+
+def parse_response(response):
+  for item in response.split("\n"):
+    if "HTTP/" in item:
+      code = item.split()
+  code = code[1]
+  if DEBUG:
+    print "\nResponse code was: %s" % code
+  return code
+
+
+
+# Main program
 if __name__ == "__main__":
 
   # Parse command-line arguments
@@ -94,8 +123,6 @@ if __name__ == "__main__":
   
   (options, args) = parser.parse_args()
   DEBUG = options.debug
-
-######  initialization(options, args)
 
 # Extract the hostname and URL from the command line
   url = sys.argv[1]
@@ -107,25 +134,28 @@ if __name__ == "__main__":
   # extract just the pertinent portion, returned as tokens.
   url = extract_url(url)
 
-# Perform a DNS lookup to retrieve the IP address for the server 
-# using socket.gethostbyname()
+  # Perform a DNS lookup to retrieve the IP address for the server 
+  # using socket.gethostbyname()
   hostIP = dns_lookup(url[0])
 
-# Initiate a TCP connection to the server's IP address, port 80, using socket.socket
+  # Initiate a TCP connection to the server's IP address, port 80, using socket.socket
   s = start_TCP(hostIP, PORT)
 
-#   - Submit a valid HTTP 1.1 request for the desired URL 
+  # Submit a valid HTTP 1.1 request for the desired URL 
   message = create_message(url)
-  send_request(s, message)
+  TCP_request(s, message)
+  response = TCP_recv(s)
+  TCP_close(s)
+  
 
-#   - Parse the return code from the response
+  # Parse the return code from the response
+  parse_response(response)
 
-#   - If the request was successful ("200 OK"), read the entire data from the server and save the returned object to a file with the name given on the command line. Your client must support retrieving files of more than a few KB, which require multiple calls to your socket's recv() method.
+  # If the request was successful ("200 OK"), read the entire data from the 
+  # server and save the returned object to a file with the name given on the 
+  # command line. Your client must support retrieving files of more than a 
+  # few KB, which require multiple calls to your socket's recv() method.
 
-#   - The command-line syntax for running your program will be: 
-#     python client.py <URL> <filename> 
-#     For example, to fetch http://www.cs.pdx.edu/index.html, 
-#     python client.py http://www.cs.pdx.edu/index.html cs.html
 
 
 
