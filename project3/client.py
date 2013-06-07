@@ -104,13 +104,23 @@ def TCP_close(s):
 
 
 def parse_response(response):
+  length = ""
   for item in response.split("\n"):
     if "HTTP/" in item:
       code = item.split()
+    if "Length:" in item:
+      length = item.split()
+      length = length[1]
+  if (length == ""):
+    length = response.split("\r\n\r\n")
+    length = length[1].split("\r", 2)
+    length = length[0]
+     
   code = code[1]
   if DEBUG:
     print "\nResponse code was: %s" % code
-  return code
+    print "Length was: %s" % length
+  return code, length
 
 
 
@@ -145,17 +155,18 @@ if __name__ == "__main__":
   message = create_message(url)
   TCP_request(s, message)
   response = TCP_recv(s)
-  TCP_close(s)
-  
 
   # Parse the return code from the response
-  parse_response(response)
+  if parse_response(response) == "200":  
+    response = TCP_recv(s)
+    
 
   # If the request was successful ("200 OK"), read the entire data from the 
   # server and save the returned object to a file with the name given on the 
   # command line. Your client must support retrieving files of more than a 
   # few KB, which require multiple calls to your socket's recv() method.
 
-
+  # close the connection when finished.
+  TCP_close(s)
 
 
