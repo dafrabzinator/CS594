@@ -88,9 +88,12 @@ def TCP_request(s, message):
 
 
 # Take in the TCP response
-def TCP_recv(s):
+def TCP_recv(s, length):
   BUFFER_SIZE = 1024
-  data = s.recv(BUFFER_SIZE)
+  if length == -1:
+    data = s.recv(BUFFER_SIZE)
+  else:
+    data = s.recv(length)
   if DEBUG:
     print "\nReceived data:\n", data
   return data
@@ -110,11 +113,12 @@ def parse_response(response):
       code = item.split()
     if "Length:" in item:
       length = item.split()
-      length = length[1]
+      length = int(length[1])
+  # if we still don't have the length, try the other length location.
   if (length == ""):
     length = response.split("\r\n\r\n")
     length = length[1].split("\r", 2)
-    length = length[0]
+    length = int(length[0], 16)
      
   code = code[1]
   if DEBUG:
@@ -154,11 +158,12 @@ if __name__ == "__main__":
   # Submit a valid HTTP 1.1 request for the desired URL 
   message = create_message(url)
   TCP_request(s, message)
-  response = TCP_recv(s)
+  response = TCP_recv(s, -1)
 
   # Parse the return code from the response
-  if parse_response(response) == "200":  
-    response = TCP_recv(s)
+  code, length = parse_response(response)
+  if code == "200":  
+    response = TCP_recv(s, length)
     
 
   # If the request was successful ("200 OK"), read the entire data from the 
