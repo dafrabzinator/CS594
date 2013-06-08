@@ -24,6 +24,7 @@ from optparse import OptionParser
 def start_server(port):
   TCP_IP = '127.0.0.1'
   BUFFER_SIZE = 1024  
+  flag = True
 
   s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   s.bind((TCP_IP, port))
@@ -35,7 +36,7 @@ def start_server(port):
   #this section in a loop so you don't close early.  
   conn, addr = s.accept()
   print 'Connection address:', addr
-  while 1:
+  while flag:
       # get the request in
       data = conn.recv(BUFFER_SIZE)
       if not data: break
@@ -47,7 +48,9 @@ def start_server(port):
       print "Response sent: %s" % response
       # send the response
       conn.send(response)  # echo
-  return conn
+      conn.close()
+      flag = False
+#  return conn
 
 
 
@@ -119,7 +122,7 @@ if __name__ == "__main__":
   s = start_server(port)
 
   # won't want to close til you're done.  
-  s.close()
+#  s.close()
 
   # easier to program it like this, but multi-threading not so much.
   # multi-processing works better, but we don't have to.  
