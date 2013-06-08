@@ -14,6 +14,8 @@
 
 import sys
 import socket
+import os.path
+from time import gmtime, strftime
 from optparse import OptionParser
 
 
@@ -34,12 +36,70 @@ def start_server(port):
   conn, addr = s.accept()
   print 'Connection address:', addr
   while 1:
+      # get the request in
       data = conn.recv(BUFFER_SIZE)
       if not data: break
-      print "received data:", data
-      conn.send(data)  # echo
+      print "received data: %s" % data
+      # parse the request
+      file_requested = parse_request(data)
+      # create the response to the request
+      response = create_response(file_requested)
+      print "Response sent: %s" % response
+      # send the response
+      conn.send(response)  # echo
   return conn
 
+
+
+# takes in the request, spits out the requested file if a valid HTTP/1.1
+# request was made.  If not, returns an empty string ""
+def parse_request(request):
+  request = request.split()
+  if (request[0] == "GET") and (request[2] == "HTTP/1.1"):
+    file_requested = request[1]
+    if file_requested[0] == "/":
+      file_requested = file_requested[1:]
+  else:
+    file_requested = ""
+  return file_requested
+  
+
+
+def create_response(file_requested):
+
+  response = "HTTP/1.1 "
+  okflag = False
+
+  # types of headers returned
+  if file_requested == "":
+    response += "400 Bad Request"
+  elif (os.path.isfile(file_requested)):
+    response += "200 OK"
+    okflag = True
+  else:
+    print os.path.isfile(file_requested)
+    response += "404 Not Found"
+  
+  # common headers to all responses
+  response += "\r\n"
+  response += "Date: %s\r\n" % strftime("%a, %d %b %Y %X GMT", gmtime())
+  response += "Server: %s\r\n" % sys.platform
+ 
+  # response addition if a valid request
+  if okflag == True:
+    response += "Content-Length: %s\r\n" % os.path.getsize(file_requested)
+    response += "\r\n"
+    # add the file to the response.
+    f = open(file_requested, "rb")
+    response += f.read()
+    f.close()
+  else:
+    response += "Content-Length: 0\r\n"
+
+  # closing line feed for either type
+  response += "\r\n"
+  return response
+  
 
 
 # Main program
