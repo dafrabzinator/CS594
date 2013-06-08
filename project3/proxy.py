@@ -172,12 +172,12 @@ def start_server(port):
         data = ""
         if code == "200":  
           # put the first chunk into the file
-        data = response.split("\r\n\r\n",2)
-        data = data[1]
-        # get and put the rest of it into the file
-        data = data + TCP_recv(s, length)
-        if DEBUG:
-          print data
+          data = response.split("\r\n\r\n",2)
+          data = data[1]
+          # get and put the rest of it into the file
+          data = data + TCP_recv(s, (length - len(data)))
+          if DEBUG:
+            print data
         
         # send the response
         conn.send(data)  # echo
