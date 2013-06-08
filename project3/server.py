@@ -31,21 +31,26 @@ def start_server(port):
 
   # give it an argument: number queued up to send.  (check docs)  
   # even though single-threaded.
+  if DEBUG:
+    print "Listening on port %s" % port
   s.listen(1)
 
   #this section in a loop so you don't close early.  
   conn, addr = s.accept()
-  print 'Connection address:', addr
+  if DEBUG:
+    print 'Connection address:', addr
   while flag:
       # get the request in
       data = conn.recv(BUFFER_SIZE)
       if not data: break
-      print "received data: %s" % data
+      if DEBUG:
+        print "received data: %s" % data
       # parse the request
       file_requested = parse_request(data)
       # create the response to the request
       response = create_response(file_requested)
-      print "Response sent: %s" % response
+      if DEBUG:
+        print "Response sent: %s" % response
       # send the response
       conn.send(response)  # echo
       conn.close()
@@ -68,6 +73,9 @@ def parse_request(request):
   
 
 
+# creates a valid HTTP response based on the information requested
+# current responses are: 200, 404 and 400.  400 bad request should only
+# happen if the information coming in wasn't understood.
 def create_response(file_requested):
 
   response = "HTTP/1.1 "
@@ -120,9 +128,3 @@ if __name__ == "__main__":
 
   # start server on specifed port
   s = start_server(port)
-
-  # won't want to close til you're done.  
-#  s.close()
-
-  # easier to program it like this, but multi-threading not so much.
-  # multi-processing works better, but we don't have to.  
