@@ -38,7 +38,7 @@ import matplotlib.pyplot as plt
 
 from collections import defaultdict
 from multiprocessing import Process, Queue
-from Queue import Full as QueueFullException
+from queue import Full as QueueFullException
 
 from optparse import OptionParser
 
@@ -133,8 +133,8 @@ def callback(ts, pkt, iface, queues):
                 pass
             else:
                 if DEBUG:
-                    print "Packet is from interface %d" % iface
-                    print "Writing packet to interface %d" % (i)
+                    print ("Packet is from interface %d" % iface)
+                    print ("Writing packet to interface %d" % (i))
                 q = queues[i]
                 try:
                     output_byts[i-1] += len(pkt)
@@ -186,8 +186,8 @@ def callback2(ts, pkt, iface, queues):
                 pass
             else:
                 if DEBUG:
-                    print "Packet is from interface %d" % iface
-                    print "Writing packet to interface %d" % (i)
+                    print ("Packet is from interface %d" % iface)
+                    print ("Writing packet to interface %d" % (i))
                 q = queues[i]
                 try:
                     output_cnt2[i-1] +=1
@@ -235,8 +235,8 @@ def callback3(ts, pkt, iface, queues):
                 pass
             else:
                 if DEBUG:
-                    print "Packet is from interface %d" % iface
-                    print "Writing packet to interface %d" % (i)
+                    print ("Packet is from interface %d" % iface)
+                    print ("Writing packet to interface %d" % (i))
                 q = queues[i]
                 try:
                     output_cnt3[i-1] +=1
@@ -283,8 +283,8 @@ def callback4(ts, pkt, iface, queues):
                 pass
             else:
                 if DEBUG:
-                    print "Packet is from interface %d" % iface
-                    print "Writing packet to interface %d" % (i)
+                    print ("Packet is from interface %d" % iface)
+                    print ("Writing packet to interface %d" % (i))
                 q = queues[i]
                 try:
                     output_cnt4[i-1] +=1
@@ -368,12 +368,12 @@ if __name__ == "__main__":
         # Unwrap the tuple.  The heap contains triples of (timestamp, packet contents, interface number)
         ts, pkt, iface = p
         if DEBUG:
-            print "Next packet is from interface %d" % iface
+            print ("Next packet is from interface %d" % iface)
         
         # Inject some additional delay here to simulate processing in real time
         interarrival_time = ts-prev_ts
         if DEBUG:
-            print "Main driver process sleeping for %1.3fs" % interarrival_time
+            print ("Main driver process sleeping for %1.3fs" % interarrival_time)
         if SDEBUG:
             time.sleep(interarrival_time)
         prev_ts = ts
@@ -393,7 +393,7 @@ if __name__ == "__main__":
             heapq.heappush(h, (ts, pkt, iface))
         else:
             if DEBUG:
-                print "Interface %d has no more packets" % iface
+                print ("Interface %d has no more packets" % iface)
     
     # Now that we're done reading, we can close all of our input files.
     for i in input_files.keys():
@@ -411,13 +411,13 @@ if __name__ == "__main__":
     #and increment up for each time it is added
     for result in list_of_results1:
         results1[result] += 1
-    print "Results for command line option: "
+    print ("Results for command line option: ")
 
     #sort the dictionary by the value of times it appears
     rSorted = sorted(results1, key=results1.get, reverse=True)
-    print "\n\n10 biggest senders by frames:"
+    print ("\n\n10 biggest senders by frames:")
     for i in range (0, 10):
-        print "%d. %s - %d" % ((i+1), rSorted[i].encode("hex"), results1[rSorted[i]])
+        print ("%d. %s - %d" % ((i+1), rSorted[i].encode("hex"), results1[rSorted[i]]))
 
     
     #For each item in the list add it to the dictionary
@@ -427,16 +427,16 @@ if __name__ == "__main__":
 
     #sort the dictionary by the value of greatest size
     r2Sorted = sorted(results2, key=results2.get, reverse=True)
-    print "\n\n10 biggest senders by size:"
+    print ("\n\n10 biggest senders by size:")
     for i in range(0, 10):
-        print "%d. %s - %d" % ((i+1), r2Sorted[i].encode("hex"), results2[r2Sorted[i]])
+        print ("%d. %s - %d" % ((i+1), r2Sorted[i].encode("hex"), results2[r2Sorted[i]]))
 
     #Print Total Count of Packets
-    print "\n\n%d number of packets & size" % count2
+    print ("\n\n%d number of packets & size" % count2)
     #Print activity based on each packet
     for i in range (0,4):
-        print "Output Interface %d - %d packets - %d bytes" % ((i+1), output_cnt1[i], output_byts[i])
-    print "%d Total Packets Sent" % (output_cnt1[0]+output_cnt1[1]+output_cnt1[2]+output_cnt1[3])
+        print ("Output Interface %d - %d packets - %d bytes" % ((i+1), output_cnt1[i], output_byts[i]))
+    print ("%d Total Packets Sent" % (output_cnt1[0]+output_cnt1[1]+output_cnt1[2]+output_cnt1[3]))
 
     N = 4
     #place data in each slot based on results from above
